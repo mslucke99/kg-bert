@@ -7,6 +7,6 @@ boto3
 # Used for downloading models over HTTP
 requests
 # bert
-pytorch-pretrained-bert>=0.6.2
+transformers
 # wikipedia
 wikipedia

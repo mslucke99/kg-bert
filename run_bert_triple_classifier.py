@@ -36,15 +36,22 @@ from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import matthews_corrcoef, f1_score
 from sklearn import metrics
 
-from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
-from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+#from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE, WEIGHTS_NAME, CONFIG_NAME
+from transformers import TRANSFORMERS_CACHE
+from transformers import BertForSequenceClassification, BertConfig
+#from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig
+from transformers import BertTokenizer
+from transformers import AdamW, get_linear_schedule_with_warmup
+#from pytorch_pretrained_bert.tokenization import BertTokenizer
+#from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
+WEIGHTS_NAME = 'pytorch_model.bin'
+CONFIG_NAME = 'config.json'
 os.environ['CUDA_VISIBLE_DEVICES']= '6'
 #torch.backends.cudnn.deterministic = True
 
 logger = logging.getLogger(__name__)
+
 
 
 class InputExample(object):
@@ -560,7 +567,7 @@ def main():
             num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), 'distributed_{}'.format(args.local_rank))
+    cache_dir = args.cache_dir if args.cache_dir else os.path.join(str(TRANSFORMERS_CACHE), 'distributed_{}'.format(args.local_rank))
     model = BertForSequenceClassification.from_pretrained(args.bert_model,
               cache_dir=cache_dir,
               num_labels=num_labels)
@@ -599,14 +606,15 @@ def main():
             optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         else:
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
-        warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion,
-                                             t_total=num_train_optimization_steps)        
+        warmup_linear = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=args.warmup_proportion,
+                                             num_training_steps=num_train_optimization_steps)        
 
     else:
-        optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=args.learning_rate,
-                             warmup=args.warmup_proportion,
-                             t_total=num_train_optimization_steps)
+        optimizer = AdamW(optimizer_grouped_parameters,
+                             lr=args.learning_rate)
+        warmup_linear = get_linear_schedule_with_warmup(optimizer, 
+                                             num_warmup_steps=args.warmup_proportion, 
+                                             num_training_steps=num_train_optimization_steps)
 
     global_step = 0
     nb_tr_steps = 0
@@ -682,8 +690,9 @@ def main():
         output_model_file = os.path.join(args.output_dir, WEIGHTS_NAME)
         output_config_file = os.path.join(args.output_dir, CONFIG_NAME)
 
-        torch.save(model_to_save.state_dict(), output_model_file)
-        model_to_save.config.to_json_file(output_config_file)
+        #torch.save(model_to_save.state_dict(), output_model_file)
+        #model_to_save.config.to_json_file(output_config_file)
+        model.save_pretrained(args.output_dir)
         tokenizer.save_vocabulary(args.output_dir)
 
         # Load a trained model and vocabulary that you have fine-tuned
