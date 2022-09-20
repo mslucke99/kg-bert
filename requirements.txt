@@ -10,3 +10,7 @@ requests
 transformers
 # wikipedia
 wikipedia
+# scipy
+scipy
+# sklearn
+sklearn
